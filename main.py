@@ -8,12 +8,14 @@ TOKEN = "5906905240:AAGSH8itptIwVd4NgAiQuMa-lDic2ZRE2kM"
 
 bot = telebot.TeleBot(TOKEN)
 
+
 # Funzione per generare numeri casuali composti da 6 cifre
 def generate_random_number():
     return ''.join(random.choices(string.digits, k=6))
 
-#CREAZIONE DATABASE
-connection = sqlite3.connect('database_tg.db' ,check_same_thread=False)
+
+# CREAZIONE DATABASE
+connection = sqlite3.connect('database_tg.db', check_same_thread=False)
 cursor = connection.cursor()
 
 # Genera 300000 numeri casuali
@@ -24,16 +26,25 @@ cursor.execute("CREATE TABLE IF NOT EXISTS freshman (matricole TEXT)")
 cursor.execute("INSERT INTO freshman (matricole) VALUES (?)", (",".join(matricole),))
 connection.commit()
 
+
 def check_matricola(message):
+    global uscita_loop
     matricola_numero = message.text
 
+    if matricola_numero == "/exit":
+        uscita_loop = True
+        bot.reply_to(message, "Hai interrotto il processo di inserimento della matricola.")
+        return
+
+
     if not matricola_numero.isdigit() or len(matricola_numero) != 6:
-        bot.reply_to(message, "⚠️ La matricola deve essere composta da 6 cifre numeriche. \nInserisci nuovamente la matricola:")
+        bot.reply_to(message,
+                     "⚠️ La matricola deve essere composta da 6 cifre numeriche. \nInserisci nuovamente la matricola o usa /exit per interrompere il processo:")
         bot.register_next_step_handler(message, check_matricola)
         return
 
     cursor.execute("SELECT matricole FROM freshman")
-    matricole = cursor.fetchone()[0].split(",")
+    cursor.fetchone()[0].split(",")
 
     if matricola_numero in matricole:
         bot.reply_to(message, f"✅ La matricola è corretta {message.from_user.first_name}!")
@@ -42,18 +53,23 @@ def check_matricola(message):
         bot.send_message(message.chat.id, "/lista_esami - Per vedere lista degli esami prenotabili")
         bot.send_message(message.chat.id, "/prenotazione_esami - Per prenotare esami")
     else:
-        bot.reply_to(message, "❌ La matricola è incorretta. \nInserisci nuovamente la matricola:")
-        bot.register_next_step_handler(message, check_matricola)
+        bot.reply_to(message,
+                     "❌ La matricola è incorretta. \nInserisci nuovamente la matricola o usa /exit per interrompere il processo:")
+
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, f"👋 Benvenuto in ExamBot {message.from_user.first_name}!\n Per iniziare, inserisci la tua matricola:")
+    global uscita_loop
+    uscita_loop = False
+    bot.reply_to(message,
+                 f"👋 Benvenuto in ExamBot {message.from_user.first_name}!\n Per iniziare, inserisci la tua matricola:")
 
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     # Avvia la funzione di controllo della matricola
-    check_matricola(message)
+
+    if not uscita_loop: check_matricola(message)
 
 
 bot.polling()
