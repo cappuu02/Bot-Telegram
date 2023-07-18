@@ -16,8 +16,8 @@ def generate_random_number():
 connection = sqlite3.connect('database_tg.db' ,check_same_thread=False)
 cursor = connection.cursor()
 
-# Genera 1000 numeri casuali
-matricole = [generate_random_number() for _ in range(1000)]
+# Genera 300000 numeri casuali
+matricole = [generate_random_number() for _ in range(300000)]
 
 # Salva le matricole nel database come una lista di valori separati da virgola
 cursor.execute("CREATE TABLE IF NOT EXISTS freshman (matricole TEXT)")
