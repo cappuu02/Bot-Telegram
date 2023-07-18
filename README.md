@@ -1,2 +1,2 @@
 # Bot-Telegram
-Tlegram bot for unipg exam
+Telegram bot for software engineering project. Developers Luca Capuccini and Edoardo Tommasi
