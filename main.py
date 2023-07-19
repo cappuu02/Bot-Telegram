@@ -2,6 +2,7 @@ import telebot
 import sqlite3
 from bs4 import BeautifulSoup
 import requests
+import random
 
 TOKEN = "5906905240:AAGSH8itptIwVd4NgAiQuMa-lDic2ZRE2kM"  # Inserisci qui il token del tuo bot ottenuto da BotFather
 
@@ -32,13 +33,30 @@ if response.status_code == 200:
             values.append(row_values)
 
     values = [row for row in values if any(row[1:])]
+    # Creazione dell'array delle lezioni
+    lezioni_array = []
+
+    for row in values:
+        lezione = row[1]
+        lezioni_array.append(lezione)
 
     table_string = f"📅 Data: {div}\n\n"
     for row in values:
         row_string = "\n".join([f"🔹 {header}: {value}" for header, value in zip(headers, row)])
         table_string += f"{row_string}\n\n"
+
+
+
+
+
+
 else:
     print("Errore nella richiesta HTTP:", response.status_code)
+
+
+
+
+
 
 
 @bot.message_handler(commands=['start'])
@@ -85,28 +103,64 @@ def handle_table(message):
     bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
 
 
+
+
 @bot.message_handler(commands=['prenotazione_lezioni'])
 def handle_prenotazioni(message):
     bot.send_message(message.chat.id, "Quale lezione vorresti prenotare?")
 
+    @bot.message_handler(func=lambda message: True)
+    def check_prenotazione(message):
+        lezione = message.text
 
-@bot.message_handler(func=lambda message: True)
-def check_prenotazione(message):
-    lezione = message.text
+        # Controlla se il messaggio corrisponde a una delle lezioni presenti nell'array delle lezioni
+        lezione_presente = False
+        for l in lezioni_array:
+            if lezione.lower() == l.lower():
+                lezione_presente = True
+                break
 
-    # Controlla se il messaggio corrisponde a una delle lezioni presenti nella tabella
-    for row in values:
-        if lezione.lower() == row[0].lower():
+        if lezione_presente:
+            bot.send_message(message.chat.id, f"✅ La lezione {lezione} è prenotabile!")
+            bot.send_message(message.chat.id, f"Vuoi prenotarla? (Rispondi con 'Si' o 'No')")
 
-            posti_disponibili = 1
-            if posti_disponibili > 0:
-                bot.send_message(message.chat.id, f"✅ La lezione {lezione} è prenotabile!")
-            else:
-                bot.send_message(message.chat.id,
-                                 f"Mi dispiace, non ci sono posti disponibili per la lezione {lezione}.")
-            return
+            @bot.message_handler(func=lambda message: message.text.lower() in ['si', 'no'])
+            def conferma_prenotazione(message):
+                risposta = message.text.lower()
+                if risposta == 'si':
+                    # Esegui la logica per la prenotazione della lezione
+                    disponibile = random.choice([True, False])
+                    if(disponibile == True):
+                        bot.send_message(message.chat.id, "Prenotazione effettuata con successo!")
+                        bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
+                        bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
+                        bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
+                        bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
 
-    bot.send_message(message.chat.id, f"❌ La lezione {lezione} non è presente nella lista delle lezioni prenotabili.")
+                    else:
+                        bot.send_message(message.chat.id, "Prenotazione fallita, l'aula è piena!")
+                        bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
+                        bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
+                        bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
+                        bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
+
+
+                elif risposta == 'no':
+                    # Ripeti il processo di prenotazione o esegui altre azioni
+                    bot.send_message(message.chat.id, "Va bene, ripeti il processo di prenotazione.")
+                else:
+                    # Risposta non valida, richiedi una risposta corretta
+                    bot.send_message(message.chat.id, "Risposta non valida. Rispondi con 'Si' o 'No'.")
+                    bot.register_next_step_handler(message, conferma_prenotazione)
+
+            # Registra la funzione conferma_prenotazione come gestore dei messaggi successivi
+            bot.register_next_step_handler(message, conferma_prenotazione)
+        else:
+            bot.send_message(message.chat.id, f"❌ La lezione {lezione} non è presente nella lista delle lezioni prenotabili.")
+            bot.send_message(message.chat.id, "Puoi ripetere il processo di prenotazione con una lezione diversa.")
+
+    # Registra la funzione check_prenotazione come gestore dei messaggi successivi
+    bot.register_next_step_handler(message, check_prenotazione)
 
 
 bot.polling()
