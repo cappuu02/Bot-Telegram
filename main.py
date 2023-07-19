@@ -1,116 +1,112 @@
 import telebot
 import sqlite3
-#import string
-#import random
 from bs4 import BeautifulSoup
 import requests
 
-# Inserisci qui il token del tuo bot ottenuto da BotFather
-TOKEN = "5906905240:AAGSH8itptIwVd4NgAiQuMa-lDic2ZRE2kM"
+TOKEN = "5906905240:AAGSH8itptIwVd4NgAiQuMa-lDic2ZRE2kM"  # Inserisci qui il token del tuo bot ottenuto da BotFather
 
 bot = telebot.TeleBot(TOKEN)
 
-# Funzione per generare numeri casuali composti da 6 cifre
-#def generate_random_number():
-#   return ''.join(random.choices(string.digits, k=6))
-
-# CREAZIONE DATABASE
 connection = sqlite3.connect('database_tg.db', check_same_thread=False)
 cursor = connection.cursor()
 
-# Genera 300000 numeri casuali
-#matricole = [generate_random_number() for _ in range(300000)]
+url = "https://servizi.dmi.unipg.it/mrbs/day.php?year=2023&month=05&day=17&area=1&room=3"
+response = requests.get(url)
 
-# Salva le matricole nel database come una lista di valori separati da virgola
-#cursor.execute("CREATE TABLE IF NOT EXISTS freshman (matricole TEXT)")
-#cursor.execute("INSERT INTO Freshman VALUES (342244)")
-#cursor.execute("INSERT INTO Freshman VALUES (347711)")
-#cursor.execute("INSERT INTO freshman (matricole) VALUES (?)", (",".join(matricole),))
-connection.commit()
+if response.status_code == 200:
+    soup = BeautifulSoup(response.text, "html.parser")
+    div = soup.find("div", id="dwm").get_text(strip=True)
+    table = soup.find("table", class_="dwm_main")
+    rows = table.find_all("tr")
 
+    header_row = rows[0]
+    headers = []
+    for header in header_row.find_all("th"):
+        header_text = header.get_text(strip=True)
+        headers.append(header_text)
 
+    values = []
+    for row in rows[1:]:
+        row_values = [value.get_text(strip=True) for value in row.find_all("td")]
+        if any(row_values):
+            values.append(row_values)
+
+    values = [row for row in values if any(row[1:])]
+
+    table_string = f"📅 Data: {div}\n\n"
+    for row in values:
+        row_string = "\n".join([f"🔹 {header}: {value}" for header, value in zip(headers, row)])
+        table_string += f"{row_string}\n\n"
+else:
+    print("Errore nella richiesta HTTP:", response.status_code)
 
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    bot.reply_to(message, f"👋 Benvenuto in ExamBot {message.from_user.first_name}!\n Per iniziare, inserisci la tua matricola:")
-
+    bot.reply_to(message, f"👋 Benvenuto in ExamBot, {message.from_user.first_name}!\n\nPer iniziare, inserisci la tua matricola:")
     bot.register_next_step_handler(message, check_matricola)
 
+
 def check_matricola(message):
-        matricola_numero = message.text
+    matricola_numero = message.text
 
-        if matricola_numero == "/start": handle_start(message)
+    if matricola_numero == "/start":
+        handle_start(message)
 
-        if (not matricola_numero.isdigit() or len(matricola_numero) != 6) and (matricola_numero != "/start"):
-            bot.reply_to(message, "⚠️ La matricola deve essere composta da 6 cifre numeriche."
-                                  "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
-            bot.register_next_step_handler(message, check_matricola)
-            return
+    if (not matricola_numero.isdigit() or len(matricola_numero) != 6) and (matricola_numero != "/start"):
+        bot.reply_to(message, "⚠️ La matricola deve essere composta da 6 cifre numeriche."
+                              "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
+        bot.register_next_step_handler(message, check_matricola)
+        return
 
-        cursor.execute("SELECT matricole FROM freshman")
-        matricole_db = cursor.fetchone()[0].split(",")
+    cursor.execute("SELECT matricole FROM freshman")
+    matricole_db = cursor.fetchone()[0].split(",")
 
-        if matricola_numero in matricole_db:
-            bot.reply_to(message, f"✅ La matricola è corretta {message.from_user.first_name}!")
-            bot.send_message(message.chat.id, "Ora puoi utilizzare i seguenti comandi:")
-            bot.send_message(message.chat.id, "/start - Per reinserire la matricola")
-            bot.send_message(message.chat.id, "/lista_lezioni - Per vedere lista delle lezioni prenotabili")
-            bot.send_message(message.chat.id, "/prenotazione_lezioni - Per prenotare lezioni")
-        if (matricola_numero not in matricole_db) and (matricola_numero != "/start"):
-            bot.reply_to(message,
-                         "❌ La matricola è incorretta."
-                         "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
-            bot.register_next_step_handler(message, check_matricola)
-
+    if matricola_numero in matricole_db:
+        bot.reply_to(message, f"✅ La matricola è corretta, {message.from_user.first_name}!")
+        bot.send_message(message.chat.id, "Ora puoi utilizzare i seguenti comandi:")
+        bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
+        bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
+        bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
+    elif matricola_numero != "/start":
+        bot.reply_to(message,
+                     "❌ La matricola è incorretta."
+                     "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
+        bot.register_next_step_handler(message, check_matricola)
 
 
 @bot.message_handler(commands=['lista_lezioni'])
 def handle_table(message):
+    bot.send_message(message.chat.id, table_string)
+    bot.reply_to(message, "✅ Lista delle lezioni stampata correttamente!")
+    bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
+    bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
+    bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
+    bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
 
-    # Effettua una richiesta GET alla pagina web
-    url = "https://servizi.dmi.unipg.it/mrbs/day.php?year=2023&month=05&day=17&area=1&room=3"  # Inserisci l'URL del sito web contenente la tabella
-    response = requests.get(url)
 
-    # Verifica lo stato della risposta
-    if response.status_code == 200:
-        # Parsing del contenuto HTML della pagina
-        soup = BeautifulSoup(response.text, "html.parser")
+@bot.message_handler(commands=['prenotazione_lezioni'])
+def handle_prenotazioni(message):
+    bot.send_message(message.chat.id, "Quale lezione vorresti prenotare?")
 
-        # Trova la tabella desiderata utilizzando un selettore CSS o un'etichetta specifica
-        table = soup.find("table", class_="dwm_main")
 
-        # Estrai le righe della tabella
-        rows = table.find_all("tr")
+@bot.message_handler(func=lambda message: True)
+def check_prenotazione(message):
+    lezione = message.text
 
-        # Lista per raggruppare i valori della matrice
-        values = []
+    # Controlla se il messaggio corrisponde a una delle lezioni presenti nella tabella
+    for row in values:
+        if lezione.lower() == row[0].lower():
 
-        # Estrai e raggruppa i valori delle righe
-        for row in rows:
-            # Estrai le colonne della riga
-            columns = row.find_all("td")
+            posti_disponibili = 1
+            if posti_disponibili > 0:
+                bot.send_message(message.chat.id, f"✅ La lezione {lezione} è prenotabile!")
+            else:
+                bot.send_message(message.chat.id,
+                                 f"Mi dispiace, non ci sono posti disponibili per la lezione {lezione}.")
+            return
 
-            # Estrai il valore di ogni colonna e aggiungilo alla lista values
-            for column in columns:
-                value = column.get_text(strip=True)
-                if value:
-                    values.append(value)
+    bot.send_message(message.chat.id, f"❌ La lezione {lezione} non è presente nella lista delle lezioni prenotabili.")
 
-        # Stampa i valori raggruppati come stringa
-        bot.reply_to(message, "\n".join(values))
-        bot.reply_to(message, f"✅ Lista stampata correttamente!")
-        bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
-        bot.send_message(message.chat.id, "/start - Per reinserire la matricola")
-        bot.send_message(message.chat.id, "/lista_lezioni - Per rivedere lista delle lezioni prenotabili")
-        bot.send_message(message.chat.id, "/prenotazione_lezioni - Per prenotare lezioni")
-    else:
-         print(message, "Errore nella richiesta HTTP:", response.status_code)
 
-    @bot.message_handler(commands=['prenotazione_lezione'])
-    def handle_prenotazioni(message):
-        bot.send_message(message.chat.id, "Quale lezione vorresti prenotare?")
-        lezione = message.text
-        
-# Avvia il bot
 bot.polling()
