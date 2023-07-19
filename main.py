@@ -113,6 +113,13 @@ def handle_prenotazioni(message):
     def check_prenotazione(message):
         lezione = message.text
 
+        if (lezione == '/start'):
+            handle_start(message)
+        if (lezione == '/prenotazione_lezioni'):
+            bot.register_next_step_handler(message, check_prenotazione)
+        if (lezione == '/lista_lezioni'):
+            handle_table(message)
+
         # Controlla se il messaggio corrisponde a una delle lezioni presenti nell'array delle lezioni
         lezione_presente = False
         for l in lezioni_array:
@@ -126,7 +133,15 @@ def handle_prenotazioni(message):
 
             @bot.message_handler(func=lambda message: message.text.lower() in ['si', 'no'])
             def conferma_prenotazione(message):
+
                 risposta = message.text.lower()
+                if (risposta == '/start'):
+                    handle_start(message)
+                if( risposta == '/prenotazione_lezioni'):
+                    bot.register_next_step_handler(message, check_prenotazione)
+                if( risposta == '/lista_lezioni'):
+                    handle_table(message)
+
                 if risposta == 'si':
                     # Esegui la logica per la prenotazione della lezione
                     disponibile = random.choice([True, False])
@@ -148,14 +163,14 @@ def handle_prenotazioni(message):
                 elif risposta == 'no':
                     # Ripeti il processo di prenotazione o esegui altre azioni
                     bot.send_message(message.chat.id, "Va bene, ripeti il processo di prenotazione.")
-                else:
+                elif risposta != 'no' and risposta != 'si' and risposta != '/start' and risposta != 'prenotazione_lezioni' and risposta != 'lista_lezioni':
                     # Risposta non valida, richiedi una risposta corretta
                     bot.send_message(message.chat.id, "Risposta non valida. Rispondi con 'Si' o 'No'.")
                     bot.register_next_step_handler(message, conferma_prenotazione)
 
             # Registra la funzione conferma_prenotazione come gestore dei messaggi successivi
             bot.register_next_step_handler(message, conferma_prenotazione)
-        else:
+        elif not lezione_presente and lezione != '/start' and lezione != 'prenotazione_lezioni' and lezione != 'lista_lezioni':
             bot.send_message(message.chat.id, f"❌ La lezione {lezione} non è presente nella lista delle lezioni prenotabili.")
             bot.send_message(message.chat.id, "Puoi ripetere il processo di prenotazione con una lezione diversa.")
 
