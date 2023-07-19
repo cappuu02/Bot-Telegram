@@ -55,8 +55,8 @@ def check_matricola(message):
             bot.reply_to(message, f"✅ La matricola è corretta {message.from_user.first_name}!")
             bot.send_message(message.chat.id, "Ora puoi utilizzare i seguenti comandi:")
             bot.send_message(message.chat.id, "/start - Per reinserire la matricola")
-            bot.send_message(message.chat.id, "/lista_esami - Per vedere lista degli esami prenotabili")
-            bot.send_message(message.chat.id, "/prenotazione_esami - Per prenotare esami")
+            bot.send_message(message.chat.id, "/lista_lezioni - Per vedere lista delle lezioni prenotabili")
+            bot.send_message(message.chat.id, "/prenotazione_lezioni - Per prenotare lezioni")
         if (matricola_numero not in matricole_db) and (matricola_numero != "/start"):
             bot.reply_to(message,
                          "❌ La matricola è incorretta."
@@ -65,7 +65,7 @@ def check_matricola(message):
 
 
 
-@bot.message_handler(commands=['lista_esami'])
+@bot.message_handler(commands=['lista_lezioni'])
 def handle_table(message):
 
     # Effettua una richiesta GET alla pagina web
@@ -102,11 +102,15 @@ def handle_table(message):
         bot.reply_to(message, f"✅ Lista stampata correttamente!")
         bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
         bot.send_message(message.chat.id, "/start - Per reinserire la matricola")
-        bot.send_message(message.chat.id, "/lista_esami - Per rivedere lista degli esami prenotabili")
-        bot.send_message(message.chat.id, "/prenotazione_esami - Per prenotare esami")
+        bot.send_message(message.chat.id, "/lista_lezioni - Per rivedere lista delle lezioni prenotabili")
+        bot.send_message(message.chat.id, "/prenotazione_lezioni - Per prenotare lezioni")
     else:
          print(message, "Errore nella richiesta HTTP:", response.status_code)
 
-
+    @bot.message_handler(commands=['prenotazione_lezione'])
+    def handle_prenotazioni(message):
+        bot.send_message(message.chat.id, "Quale lezione vorresti prenotare?")
+        lezione = message.text
+        
 # Avvia il bot
 bot.polling()
