@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import requests
 import random
 import string
+from datetime import datetime
 
 TOKEN = "5906905240:AAGSH8itptIwVd4NgAiQuMa-lDic2ZRE2kM"  # Inserisci qui il token del tuo bot ottenuto da BotFather
 
@@ -12,7 +13,13 @@ bot = telebot.TeleBot(TOKEN)
 connection = sqlite3.connect('database_tg.db', check_same_thread=False)
 cursor = connection.cursor()
 
-url = "https://servizi.dmi.unipg.it/mrbs/day.php?year=2023&month=05&day=17&area=1&room=3"
+# Get the current date
+current_date = datetime.now()
+formatted_date = current_date.strftime("%Y-%m-%d")
+
+# Construct the URL with the current date
+url = f"https://servizi.dmi.unipg.it/mrbs/day.php?year={current_date.year}&month={current_date.month}&day={current_date.day}&area=1&room=3"
+
 response = requests.get(url)
 
 if response.status_code == 200:
@@ -45,11 +52,6 @@ if response.status_code == 200:
     for row in values:
         row_string = "\n".join([f"🔹 {header}: {value}" for header, value in zip(headers, row)])
         table_string += f"{row_string}\n\n"
-
-
-
-
-
 
 else:
     print("Errore nella richiesta HTTP:", response.status_code)
