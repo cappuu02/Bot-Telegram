@@ -23,6 +23,9 @@ url = f"https://servizi.dmi.unipg.it/mrbs/day.php?year={current_date.year}&month
 
 response = requests.get(url)
 
+# Dizionario per memorizzare la matricola degli utenti
+utenti_matricole = {}
+
 if response.status_code == 200:
     soup = BeautifulSoup(response.text, "html.parser")
     div = soup.find("div", id="dwm").get_text(strip=True)
@@ -137,7 +140,9 @@ posti_prenotati = {
 
 # La logica per richiedere la matricola
 @bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start'])
 def handle_start(message):
+    utenti_matricole[message.from_user.id] = None  # Inizializziamo la matricola come None
     bot.reply_to(message, f"👋 Benvenuto in ExamBot, {message.from_user.first_name}!\n\n"
                           f"Per iniziare, inserisci la tua matricola:")
     bot.register_next_step_handler(message, check_matricola)
@@ -153,6 +158,9 @@ def check_matricola(message):
                               "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
         bot.register_next_step_handler(message, check_matricola)
         return
+
+    # Memorizza la matricola nell'elenco degli utenti
+    utenti_matricole[message.from_user.id] = matricola_numero
 
     # Controlla se la matricola è già presente nel database
     cursor.execute("SELECT passwords FROM freshman WHERE matricole = ?", (matricola_numero,))
@@ -207,7 +215,7 @@ def handle_table(message):
 
 @bot.message_handler(commands=['prenotazione_lezioni'])
 def handle_prenotazioni(message):
-    matricola_numero = message.from_user.id
+    matricola_numero = utenti_matricole.get(message.from_user.id)
     bot.send_message(message.chat.id, "Quale lezione vorresti prenotare? Inserisci il nome esatto come nella lista")
     bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
 
@@ -261,6 +269,7 @@ def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
             bot.send_message(message.chat.id, "Prenotazione effettuata con successo!")
             # Save the booking in the database
             save_booking(matricola_numero, lezione)
+            print(matricola_numero)
 
             bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
             bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
@@ -281,10 +290,14 @@ def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
 
 @bot.message_handler(commands=['cancella_prenotazione'])
 def handle_cancella_prenotazione(message):
-    matricola_numero = message.from_user.id
-    bot.send_message(message.chat.id, "Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
-    bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
-
+    matricola_numero = utenti_matricole.get(message.from_user.id)
+    if matricola_numero is None:
+        # L'utente non ha inserito la matricola all'inizio del programma
+        bot.reply_to(message, "Inserisci la tua matricola prima di procedere.")
+        bot.send_message(message.chat.id, "Puoi inserire la matricola utilizzando il comando /start.")
+    else:
+        bot.send_message(message.chat.id, "Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
+        bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
 
 def cancella_prenotazione(message, matricola_numero):
     lezione = message.text
@@ -297,21 +310,26 @@ def cancella_prenotazione(message, matricola_numero):
         handle_table(message)
     elif lezione == '/prenotazione_lezioni':
         handle_prenotazioni(message)
-
-    elif has_already_booked(matricola_numero, lezione):
-        cursor.execute("DELETE FROM prenotazioni WHERE matricola = ? AND lezione = ?", (matricola_numero, lezione))
-        connection.commit()
-        posti_prenotati[lezione] -= 1
-        bot.send_message(message.chat.id, f"✅ Prenotazione per la lezione {lezione} cancellata con successo!")
-
-        bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
-        bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
-        bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
-        bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
-        bot.send_message(message.chat.id, "/cancella_prenotazione - Cancella la prenotazione di una lezione")
     else:
-        bot.send_message(message.chat.id, f"❌ Non hai prenotato la lezione {lezione}.")
-        bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, handle_cancella_prenotazione))
+        # Verifica se l'utente ha prenotato la lezione
+        if has_already_booked(matricola_numero, lezione):
+            cursor.execute("DELETE FROM prenotazioni WHERE matricola = ? AND lezione = ?", (matricola_numero, lezione))
+            connection.commit()
+            posti_prenotati[lezione] -= 1
+            bot.send_message(message.chat.id, f"✅ Prenotazione per la lezione {lezione} cancellata con successo!")
+
+            bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
+            bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
+            bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
+            bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
+            bot.send_message(message.chat.id, "/cancella_prenotazione - Cancella la prenotazione di una lezione")
+
+
+        else:
+            bot.send_message(message.chat.id, f"❌ Non hai prenotato la lezione {lezione}.")
+            bot.register_next_step_handler(message, lambda msg: handle_cancella_prenotazione(msg, matricola_numero))
+
+
 
 
 bot.polling()
