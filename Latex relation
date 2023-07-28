@@ -11,9 +11,12 @@ L'obiettivo del progetto è creare un bot efficiente e sicuro che consenta agli 
 ## Analisi dei Requisiti
 
 ### Glossario
+- **Bot Telegram**:  sono script contenenti delle istruzioni utilizzati nell'app di messaggistica Telegram, sono addestrati per svolgere azioni e interagire con gli utenti in maniera “amichevole”, usando dei comandi semplici e rispondendo in maniera pertinente alle richieste ricevute.
 - **Studente**: Utente registrato nel sistema.
 - **Lezione**: Evento di insegnamento con un ID, data-ora, aula e capienza massima di posti disponibili.
 - **Prenotazione**: Azione compiuta dallo studente per prenotare un posto a una lezione disponibile.
+- **Autenticazione**: Processo mediante il quale uno studente fornisce le proprie credenziali (matricola e password) per accedere al sistema. L'autenticazione deve essere sicura e verificare l'identità dello studente in modo da evitare l'accesso a utenti non autorizzati. 
+- **Visualizzazione delle Lezioni Disponibili**: Funzionalità del bot che permette agli studenti di visualizzare l'elenco delle lezioni in presenza ancora disponibili per la prenotazione. Le lezioni vengono presentate con i dettagli essenziali, come l'ID univoco, la data, l'ora e l'aula in cui si svolgeranno.
 
 ### Requisiti Utente
 Gli utenti del sistema sono gli studenti registrati presso l'istituto di istruzione. Essi desiderano utilizzare il bot Telegram per facilitare la prenotazione dei posti per le lezioni in presenza. Di seguito sono elencati i requisiti utente per il sistema:
