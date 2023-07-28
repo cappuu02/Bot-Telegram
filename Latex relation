@@ -1,0 +1,68 @@
+
+# Documentazione
+In questa sezione verrà fornita una panoramica dell'intero progetto, includendo il sommario dell'abstract, l'obiettivo del progetto, l'analisi dei requisiti e l'architettura del sistema.
+
+## Abstract-Sommario
+Il presente progetto mira a sviluppare un sistema di ricerca e prenotazione di posti per le lezioni in presenza tramite un bot telegram. Gli studenti registrati potranno visualizzare le lezioni disponibili e prenotare un posto per quelle ancora disponibili. Sarà implementato un meccanismo per prevenire truffe e garantire l'identificazione univoca degli utenti.
+
+## Obbiettivo del progetto
+L'obiettivo del progetto è creare un bot efficiente e sicuro che consenta agli studenti registrati di cercare le lezioni disponibili, visualizzarne i dettagli (id, data-ora, aula) e prenotare un posto per le lezioni ancora disponibili. Viene prestata particolare attenzione all'identificazione e sicurezza degli utenti per evitare eventuali manipolazioni del sistema.
+
+## Analisi dei Requisiti
+
+### Glossario
+- **Studente**: Utente registrato nel sistema.
+- **Lezione**: Evento di insegnamento con un ID, data-ora, aula e capienza massima di posti disponibili.
+- **Prenotazione**: Azione compiuta dallo studente per prenotare un posto a una lezione disponibile.
+
+### Requisiti Utente
+Gli utenti del sistema sono gli studenti registrati presso l'istituto di istruzione. Essi desiderano utilizzare il bot Telegram per facilitare la prenotazione dei posti per le lezioni in presenza. Di seguito sono elencati i requisiti utente per il sistema:
+- **Autenticazione**: Gli studenti devono essere in grado di autenticarsi con le credenziali registrate per accedere al sistema e utilizzare le funzionalità del bot.
+- **Visualizzazione delle Lezioni Disponibili**: Gli utenti devono poter visualizzare un elenco delle lezioni in presenza disponibili. Ogni lezione deve essere presentata con i dettagli essenziali, come l'ID univoco, la data, l'ora e l'aula in cui si terrà.
+- **Prenotazione di un posto**: Gli utenti devono poter prenotare un posto per una lezione ancora disponibile.
+
+### Requisiti Sistema
+- **Autenticazione**: Il sistema deve consentire agli studenti di autenticarsi con matricola  e password. L'autenticazione deve essere sicura e impedire l'accesso a utenti non autorizzati.\
+- **Visualizzazione delle Lezioni Disponibili**: Il sistema deve poter garantire una corretta visualizzazione delle lezioni disponibili, ordinate, ben formattate, comprensibili.
+- **Prenotazione di un posto a lezione**: Il sistema deve verificare la disponibilità di posti prima di confermare una prenotazione.
+
+## Architettura del Sistema
+Il sistema sarà sviluppato utilizzando il linguaggio di programmazione Python, sfruttando la potenza e la flessibilità della libreria Telebot per la gestione del bot. L'intero progetto è stato gestito all'interno dell'ambiente di sviluppo integrato PyCharm, il quale ha agevolato il processo di sviluppo e debugging grazie alle sue funzionalità avanzate.
+L'architettura sarà progettata col fine di garantire efficienza e sicurezza sia per l'autenticazione al sistema sia per la prenotazione alle varie lezioni fornendo un'interfaccia user-friendly per agevolarne l'utilizzo.
+
+# UML 
+## Diagramma di Classi
+![[digramma di Classi-Classi.drawio .png|600]]
+
+## Diagramma dei Casi d'uso
+Rappresentazione delle interazioni da parte dello studente (utente) e dell'estrazione della tabella da parte del bot telegram.
+![[digramma di Classi-Casi D'uso.drawio.png|600]]
+
+## Diagramma di Sequenza e Collaborazione
+Diagramma di sequenza sulla prenotazione di un posto a lezione da parte dello studente.
+![[digramma di Classi-Sequenza.drawio.png|500]]
+
+## Diagramma di Collaborazione
+Diagramma di collaborazione relativo al diagramma di sequenza utilizzato per sottolineare i collegamenti principali tra studente e prenotazione.
+![[digramma di Classi-Comunicazione.drawio.png|500]]
+
+## Diagramma di Attività
+Diagramma di attività relativo al login sul bot telegram da parte di uno studente.
+![[digramma di Classi-Attività.drawio.png|500]]
+
+## Diagramma di Stato
+Diagramma di stato relativo alla prenotazione di un posto a lezione da parte di uno studente. 
+![[digramma di Classi-Stato.drawio.png|500]]
+
+# Test Funzionali (Black-Box)
+Servono per andare a verificare le varie casistiche, effettuare dunque test, di inserimento di valori all'interno dei campi.
+
+>L'obbiettivo è quello di concentrarsi esclusivamente sugli input degli studenti e verificare se l'immissione risulta essere controllata dal programma e che non porti a situazioni inaspettate e non gestite.
+
+L'aspetto che siamo andati a verificare è l'immissione dei dati dei campi: _matricola_ e _password_ durante il login dello studente.
+
+
+
+![[Pasted image 20230728125914.png|500]]
+
+>La parola vuota non viene inclusa nei _casi estremi non validi_ perchè Telegram non permette l'invio di messaggi vuoti.
