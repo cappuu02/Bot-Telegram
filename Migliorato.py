@@ -1,32 +1,28 @@
 import telebot
 import sqlite3
-from bs4 import BeautifulSoup
-import requests
 import random
 import string
-from datetime import datetime
 import re
+from bs4 import BeautifulSoup
+import requests
+from datetime import datetime
 
 TOKEN = "5906905240:AAGSH8itptIwVd4NgAiQuMa-lDic2ZRE2kM"  # Inserisci qui il token del tuo bot ottenuto da BotFather
 
 bot = telebot.TeleBot(TOKEN)
 
+# Connessione al database
 connection = sqlite3.connect('database_tg.db', check_same_thread=False)
 cursor = connection.cursor()
 
-# Get the current date
+# URL per ottenere le lezioni dal sito
 current_date = datetime.now()
 formatted_date = current_date.strftime("%Y-%m-%d")
-
-# Construct the URL with the current date
 url = f"https://servizi.dmi.unipg.it/mrbs/day.php?year={current_date.year}&month={current_date.month}&day={current_date.day}&area=1&room=3"
-
 response = requests.get(url)
 
 # Dizionario per memorizzare la matricola degli utenti
 utenti_matricole = {}
-
-
 
 if response.status_code == 200:
     soup = BeautifulSoup(response.text, "html.parser")
@@ -35,10 +31,7 @@ if response.status_code == 200:
     rows = table.find_all("tr")
 
     header_row = rows[0]
-    headers = []
-    for header in header_row.find_all("th"):
-        header_text = header.get_text(strip=True)
-        headers.append(header_text)
+    headers = [header.get_text(strip=True) for header in header_row.find_all("th")]
 
     values = []
     for row in rows[1:]:
@@ -47,7 +40,6 @@ if response.status_code == 200:
             values.append(row_values)
 
     values = [row for row in values if any(row[1:])]
-    # Creazione dell'array delle lezioni
     lezioni_array = []
 
     for row in values:
@@ -69,23 +61,33 @@ def generate_password():
     password = ''.join(random.choice(characters) for i in range(length))
     return password
 
-# Initialize the available_matricole list to store the matricole from the database
+# Lista delle matricole desiderate con password
+matricole_desiderate = {
+    "342244": "ed",
+    "347711": "lu"
+}
+
+# Inserisci le matricole desiderate nell'elenco delle matricole disponibili
 available_matricole = []
-
-
-
-
-# Funzione per creare un record nel database con la matricola e la password associate
-def create_freshman(matricola, password):
+for matricola, password in matricole_desiderate.items():
+    available_matricole.append(matricola)
     try:
         cursor.execute("INSERT INTO freshman (matricole, passwords) VALUES (?, ?)", (matricola, password))
         connection.commit()
     except sqlite3.IntegrityError:
-        # Se la matricola è già presente nel database, esegui solo il rollback
         connection.rollback()
 
-
-
+# Genera e inserisci matricole casuali per i rimanenti slot
+remaining_slots = 100 - len(matricole_desiderate)
+for _ in range(remaining_slots):
+    matricola = ''.join(random.choice(string.digits) for _ in range(6))
+    password = generate_password()
+    try:
+        cursor.execute("INSERT INTO freshman (matricole, passwords) VALUES (?, ?)", (matricola, password))
+        connection.commit()
+        available_matricole.append(matricola)
+    except sqlite3.IntegrityError:
+        connection.rollback()
 
 # Funzione per controllare la matricola e la password nel database
 def check_credentials(matricola, password):
@@ -94,41 +96,6 @@ def check_credentials(matricola, password):
     if result and result[1] == password:
         return True
     return False
-
-# Creazione della tabella se non esiste
-cursor.execute("CREATE TABLE IF NOT EXISTS freshman (matricole TEXT PRIMARY KEY, passwords TEXT)")
-
-cursor.execute("CREATE TABLE IF NOT EXISTS posti_prenotati (lezione TEXT PRIMARY KEY, posti INTEGER)")
-
-posti_prenotati = {}
-
-# Recupera i dati dal database per riempire il dizionario posti_prenotati
-cursor.execute("SELECT lezione, posti FROM posti_prenotati")
-rows = cursor.fetchall()
-for row in rows:
-    lezione, posti = row
-    posti_prenotati[lezione] = posti
-
-
-#Lista delle matricole che vuoi includere forzatamente
-matricole_desiderate = {
-    "342244": "ed",
-    "347711": "lu"
-}
-
-#Inserisci le matricole desiderate nell'elenco delle matricole disponibili
-for matricola, password in matricole_desiderate.items():
-    available_matricole.append(matricola)
-    create_freshman(matricola, password)  # Inserisci la matricola e la password nel database
-
-#Genera e inserisci matricole casuali per i rimanenti slot
-remaining_slots = 100 - len(matricole_desiderate)
-for _ in range(remaining_slots):
-    matricola = ''.join(random.choice(string.digits) for _ in range(6))
-    password = generate_password()
-    create_freshman(matricola, password)
-    available_matricole.append(matricola)  # Aggiungi la matricola generata all'elenco disponibile
-
 
 # Funzione per controllare se una matricola ha già prenotato una lezione nel database
 def has_already_booked(matricola, lezione):
@@ -142,37 +109,29 @@ def save_booking(matricola, lezione):
         cursor.execute("INSERT INTO prenotazioni (matricola, lezione) VALUES (?, ?)", (matricola, lezione))
         connection.commit()
     except sqlite3.IntegrityError:
-        # Se la prenotazione è già presente nel database delle prenotazioni, esegui solo il rollback
         connection.rollback()
 
-    # Incrementa il numero di posti prenotati per la lezione nel dizionario e nel database dei posti prenotati
-    posti_prenotati[lezione] += 1
-    print(posti_prenotati)
-    cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, posti_prenotati[lezione]))
+    # Incrementa il numero di posti prenotati per la lezione nel database dei posti prenotati
+    cursor.execute("UPDATE posti_prenotati SET posti = posti + 1 WHERE lezione = ?", (lezione,))
     connection.commit()
 
 # Creazione della tabella delle prenotazioni se non esiste
 cursor.execute("CREATE TABLE IF NOT EXISTS prenotazioni (matricola TEXT, lezione TEXT, PRIMARY KEY (matricola, lezione))")
 
-posti_prenotati = {}
-
 # Creazione della tabella dei posti prenotati se non esiste
 cursor.execute("CREATE TABLE IF NOT EXISTS posti_prenotati (lezione TEXT PRIMARY KEY, posti INTEGER)")
 
-
-
-# Retrieve data from the database to populate the posti_prenotati dictionary
+# Recupera i dati dal database per riempire il dizionario posti_prenotati
 cursor.execute("SELECT lezione, posti FROM posti_prenotati")
-rows = cursor.fetchall()
-for row in rows:
-    lezione, posti = row
-    posti_prenotati[lezione] = posti
+posti_prenotati = {row[0]: row[1] for row in cursor.fetchall()}
 
+# Inizializza il dizionario dei posti prenotati con le lezioni disponibili e 0 posti prenotati
+for lezione in lezioni_array:
+    if lezione not in posti_prenotati:
+        cursor.execute("INSERT INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, 0))
+        posti_prenotati[lezione] = 0
 
-
-
-
-# Initialize dictionaries to store room capacities and booked seats for each lesson
+# Inizializza dizionari per le capacità delle aule e i posti prenotati per ciascuna lezione
 capacita_aule = {
     "A0": 180,
     "A2": 180,
@@ -188,7 +147,6 @@ capacita_aule = {
     "Verde": 18,
 }
 
-
 def get_room_capacity(room_name):
     capacity_match = re.search(r'\((\d+)\)', room_name)
     if capacity_match:
@@ -197,61 +155,38 @@ def get_room_capacity(room_name):
     return 0
 
 
-posti_prenotati = {
-    lesson: 0 for lesson in lezioni_array
-}
-
-
-# Funzione per ottenere tutte le matricole dal database e dividerle in gruppi
-def get_all_matricole_chunks(chunk_size=50):
-    cursor.execute("SELECT matricole FROM freshman")
-    matricole_list = cursor.fetchall()
-
-    # Dividiamo l'elenco delle matricole in gruppi più piccoli
-    chunks = [matricole_list[i:i + chunk_size] for i in range(0, len(matricole_list), chunk_size)]
-    return chunks
-
-
-# La logica per richiedere la matricola
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-
     bot.reply_to(message, f"👋 Benvenuto in ExamBot, {message.from_user.first_name}!\n\n"
                           f"Per iniziare, inserisci la tua matricola:")
-
 
     bot.register_next_step_handler(message, check_matricola)
 
 def check_matricola(message):
-
     matricola_numero = message.text.strip()
 
     if matricola_numero == "/start":
         handle_start(message)
+    if(matricola_numero != "/start" and matricola_numero.startswith('/')):
+        bot.reply_to(message, "⚠️ Il comando inserito non è valida, inserisci un comando valido o una matricola esistente.")
 
-    if(matricola_numero.isnumeric() == False):
-        bot.reply_to(message, "⚠️ La matricola inserita non è valida, inserire una matricola di 6 cifre."
-                              "\nInserisci una matricola valida o usa /start per riavviare il processo:")
         bot.register_next_step_handler(message, check_matricola)
 
-    elif(len(matricola_numero) != 6):
-        bot.reply_to(message, "⚠️ La matricola inserita non è valida, inserire una matricola di 6 cifre."
+    if (not matricola_numero.isnumeric() or len(matricola_numero) != 6) and matricola_numero.startswith('/') == False:
+        bot.reply_to(message, "⚠️ La matricola inserita non è valida, inserisci una matricola di 6 cifre."
                               "\nInserisci una matricola valida o usa /start per riavviare il processo:")
         bot.register_next_step_handler(message, check_matricola)
-
-    elif (matricola_numero not in available_matricole) and (matricola_numero.isnumeric()):
+    elif (matricola_numero not in available_matricole) and matricola_numero.startswith('/') == False:
         bot.reply_to(message, "❌ La matricola inserita non esiste."
                               "\nInserisci una matricola esistente o usa /start per riavviare il processo:")
         bot.register_next_step_handler(message, check_matricola)
+    elif matricola_numero in available_matricole:
+        # Memorizza la matricola nell'elenco degli utenti
+        utenti_matricole[message.from_user.id] = matricola_numero
 
-    elif (matricola_numero in available_matricole):
-     # Memorizza la matricola nell'elenco degli utenti
-     utenti_matricole[message.from_user.id] = matricola_numero
-
-     # La matricola è già presente, quindi chiediamo direttamente la password
-     bot.reply_to(message, f"Se dovessi aver dimenticato la tua password contatta l'assistenza")
-     bot.reply_to(message, "Inserisci la tua password:")
-     bot.register_next_step_handler(message, check_password, matricola_numero)
+        # La matricola è già presente, quindi chiediamo direttamente la password
+        bot.reply_to(message, "Inserisci la tua password:")
+        bot.register_next_step_handler(message, check_password, matricola_numero)
 
 def check_password(message, matricola_numero):
     password = message.text.strip()
@@ -259,18 +194,26 @@ def check_password(message, matricola_numero):
     if password == "/start":
         handle_start(message)
 
+    if (password != "/start" and password.startswith('/')):
+        bot.reply_to(message,
+                     "⚠️ Il comando inserito non è valido, inserisci un comando valido o una password corretta.")
+
+        bot.register_next_step_handler(message, lambda msg: check_password(msg, matricola_numero))
+        return
+
     # Controlla la matricola e la password nel database
-    if check_credentials(matricola_numero, password):
+    if check_credentials(matricola_numero, password) and not password.startswith('/'):
         bot.reply_to(message, f"✅ La matricola e la password sono corrette, {message.from_user.first_name}!")
         bot.send_message(message.chat.id, "Ora puoi utilizzare i seguenti comandi:")
         bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
         bot.send_message(message.chat.id, "/lista_lezioni - Visualizza la lista delle lezioni prenotabili")
         bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
         bot.send_message(message.chat.id, "/cancella_prenotazione - Cancella la prenotazione di una lezione")
-    elif(password != "/start"):
-        bot.reply_to(message, "❌ La matricola o la password non sono corrette."
-                              "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
-        bot.register_next_step_handler(message, check_matricola)
+    elif not password.startswith('/'):
+        bot.reply_to(message, "❌ La password non è corretta."
+                              "\nInserisci nuovamente la password o usa /start per riavviare il processo:")
+        bot.register_next_step_handler(message, lambda msg: check_password(msg, matricola_numero))
+
 
 @bot.message_handler(commands=['lista_lezioni'])
 def handle_table(message):
@@ -301,7 +244,12 @@ def check_prenotazione(message, matricola_numero):
     elif lezione == '/cancella_prenotazione':
         handle_cancella_prenotazione(message)
 
-    else:
+    if ((lezione != "/start" and lezione != "/lista_lezioni" and lezione != "/prenotazione_lezioni" and lezione != "cancella_prenotazione") and lezione.startswith('/')):
+        bot.reply_to(message, "⚠️ Il comando inserito non è valido, inserisci un comando valido o una lezione corretta.")
+
+        bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
+        return
+    elif(not lezione.startswith('/')):
         room_of_lezione = None
         for row in values:
             for lesson_name in row[1:]:
@@ -314,44 +262,48 @@ def check_prenotazione(message, matricola_numero):
         if room_of_lezione is None:
             bot.send_message(message.chat.id, f"❌ La lezione {lezione} non è presente nella lista delle lezioni prenotabili.")
             bot.send_message(message.chat.id, "Quale lezione vuoi prenotare?")
-            bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))  # Pass the matricola_numero argument
+            bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
         else:
-            # Check if the matricola has already booked the same lesson
+            # Controllo se la matricola ha già prenotato la lezione
             if has_already_booked(matricola_numero, lezione):
                 bot.send_message(message.chat.id, f"❌ Hai già prenotato la lezione {lezione}.")
                 bot.send_message(message.chat.id, "Quale lezione vuoi prenotare?")
-                bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))  # Pass the matricola_numero argument
+                bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
             else:
                 bot.send_message(message.chat.id, f"✅ La lezione {lezione} è prenotabile nell'aula {room_of_lezione}!")
                 bot.send_message(message.chat.id, "Vuoi prenotarla? (Rispondi con 'Si' o 'No')")
                 bot.register_next_step_handler(message, lambda msg: conferma_prenotazione(msg, matricola_numero, lezione, room_of_lezione))
 
-
 def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
     risposta = message.text.lower()
 
+    if ((risposta != "/start" and risposta != "/lista_lezioni" and risposta != "/prenotazione_lezioni" and risposta != "cancella_prenotazione") and risposta.startswith('/')):
+        bot.reply_to(message,"⚠️ Il comando inserito non è valido, inserisci un comando valido o una risposta corretta.")
+
+        bot.register_next_step_handler(message, lambda msg: conferma_prenotazione(msg, matricola_numero, lezione, room_of_lezione))
+        return
     if risposta == 'si':
-        # Get the capacity from the room name
+        # Prende la capacità dell'aula
         max_capacity = get_room_capacity(room_of_lezione)
 
-        # Retrieve the number of booked seats for the lesson from the database
+        # Prende il numero di posti prenotati rispetto alla lezione nel database
         cursor.execute("SELECT posti FROM posti_prenotati WHERE lezione = ?", (lezione,))
         result = cursor.fetchone()
 
         if result:
             posti_disponibili = max_capacity - result[0]
         else:
-            # If no seats are booked for the lesson, set posti_disponibili to max_capacity
+            # Se non ci sono posti prenotati per la lezione, setta posti disponibili alla capacità massima
             posti_disponibili = max_capacity
 
         if posti_disponibili > 0:
-            # Room has available seats, proceed with booking
+            #L'aula ha posti disponibili, procedi con la prenotazione
             posti_prenotati[lezione] += 1
             bot.send_message(message.chat.id, "✅ Prenotazione effettuata con successo!")
-            # Save the booking in the database
+            #Salva la prenotazione nel database
             save_booking(matricola_numero, lezione)
 
-            # Update the number of booked seats for the lesson in the posti_prenotati table
+            #Aggiorna il numero di posti prenotati per la lezione nella tabella posti_prenotati
             cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, posti_prenotati[lezione]))
             connection.commit()
 
@@ -364,13 +316,12 @@ def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
             bot.send_message(message.chat.id, "❌ Prenotazione fallita, l'aula è piena!")
             bot.send_message(message.chat.id, "Quale lezione vuoi prenotare?")
             bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
-    elif risposta != 'no':
+    elif risposta != 'no' and not risposta.startswith('/'):
         bot.send_message(message.chat.id, "⚠️ Risposta non valida. Rispondi con 'Si' o 'No'.")
         bot.register_next_step_handler(message, lambda msg: conferma_prenotazione(msg, matricola_numero, lezione, room_of_lezione))
     elif risposta == 'no':
         bot.send_message(message.chat.id, "Quale lezione vuoi prenotare?")
         bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
-
 
 @bot.message_handler(commands=['cancella_prenotazione'])
 def handle_cancella_prenotazione(message):
@@ -378,7 +329,6 @@ def handle_cancella_prenotazione(message):
 
     bot.send_message(message.chat.id, "Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
     bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
-
 
 def cancella_prenotazione(message, matricola_numero):
     lezione = message.text
@@ -391,14 +341,22 @@ def cancella_prenotazione(message, matricola_numero):
         handle_table(message)
     elif lezione == '/prenotazione_lezioni':
         handle_prenotazioni(message)
-    else:
-        # Verify if the user has booked the lesson
+
+    if ((lezione != "/start" and lezione != "/lista_lezioni" and lezione != "/prenotazione_lezioni" and lezione != "cancella_prenotazione") and lezione.startswith('/')):
+        bot.reply_to(message,
+                     "⚠️ Il comando inserito non è valido, inserisci un comando valido o una lezione corretta.")
+
+        bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
+        return
+
+    elif(not lezione.startswith('/')):
+        # Controlla che l'utente abbia prenotato la lezione
         if has_already_booked(matricola_numero, lezione):
             cursor.execute("DELETE FROM prenotazioni WHERE matricola = ? AND lezione = ?", (matricola_numero, lezione))
             connection.commit()
             posti_prenotati[lezione] -= 1
 
-            # Update the number of booked seats for the lesson in the posti_prenotati table
+            #Aggiorna il numero di posti prenotati per la lezione nella tabella posti_prenotati
             cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)",
                            (lezione, posti_prenotati[lezione]))
             connection.commit()
@@ -412,8 +370,7 @@ def cancella_prenotazione(message, matricola_numero):
             bot.send_message(message.chat.id, "/cancella_prenotazione - Cancella la prenotazione di una lezione")
         else:
             bot.send_message(message.chat.id, f"❌ Non hai prenotato la lezione {lezione}.")
-            bot.send_message(message.chat.id,"Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
+            bot.send_message(message.chat.id, "Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
             bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
-
 
 bot.polling()
