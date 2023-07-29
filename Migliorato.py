@@ -26,6 +26,8 @@ response = requests.get(url)
 # Dizionario per memorizzare la matricola degli utenti
 utenti_matricole = {}
 
+
+
 if response.status_code == 200:
     soup = BeautifulSoup(response.text, "html.parser")
     div = soup.find("div", id="dwm").get_text(strip=True)
@@ -67,6 +69,12 @@ def generate_password():
     password = ''.join(random.choice(characters) for i in range(length))
     return password
 
+# Initialize the available_matricole list to store the matricole from the database
+available_matricole = []
+
+
+
+
 # Funzione per creare un record nel database con la matricola e la password associate
 def create_freshman(matricola, password):
     try:
@@ -75,6 +83,9 @@ def create_freshman(matricola, password):
     except sqlite3.IntegrityError:
         # Se la matricola è già presente nel database, esegui solo il rollback
         connection.rollback()
+
+
+
 
 # Funzione per controllare la matricola e la password nel database
 def check_credentials(matricola, password):
@@ -99,6 +110,26 @@ for row in rows:
     posti_prenotati[lezione] = posti
 
 
+#Lista delle matricole che vuoi includere forzatamente
+matricole_desiderate = {
+    "342244": "ed",
+    "347711": "lu"
+}
+
+#Inserisci le matricole desiderate nell'elenco delle matricole disponibili
+for matricola, password in matricole_desiderate.items():
+    available_matricole.append(matricola)
+    create_freshman(matricola, password)  # Inserisci la matricola e la password nel database
+
+#Genera e inserisci matricole casuali per i rimanenti slot
+remaining_slots = 100 - len(matricole_desiderate)
+for _ in range(remaining_slots):
+    matricola = ''.join(random.choice(string.digits) for _ in range(6))
+    password = generate_password()
+    create_freshman(matricola, password)
+    available_matricole.append(matricola)  # Aggiungi la matricola generata all'elenco disponibile
+
+
 # Funzione per controllare se una matricola ha già prenotato una lezione nel database
 def has_already_booked(matricola, lezione):
     cursor.execute("SELECT lezione FROM prenotazioni WHERE matricola = ? AND lezione = ?", (matricola, lezione))
@@ -115,7 +146,7 @@ def save_booking(matricola, lezione):
         connection.rollback()
 
     # Incrementa il numero di posti prenotati per la lezione nel dizionario e nel database dei posti prenotati
-    posti_prenotati[lezione] += 180
+    posti_prenotati[lezione] += 1
     print(posti_prenotati)
     cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, posti_prenotati[lezione]))
     connection.commit()
@@ -171,50 +202,56 @@ posti_prenotati = {
 }
 
 
+# Funzione per ottenere tutte le matricole dal database e dividerle in gruppi
+def get_all_matricole_chunks(chunk_size=50):
+    cursor.execute("SELECT matricole FROM freshman")
+    matricole_list = cursor.fetchall()
+
+    # Dividiamo l'elenco delle matricole in gruppi più piccoli
+    chunks = [matricole_list[i:i + chunk_size] for i in range(0, len(matricole_list), chunk_size)]
+    return chunks
+
+
 # La logica per richiedere la matricola
 @bot.message_handler(commands=['start'])
-@bot.message_handler(commands=['start'])
 def handle_start(message):
-    utenti_matricole[message.from_user.id] = None  # Inizializziamo la matricola come None
+
     bot.reply_to(message, f"👋 Benvenuto in ExamBot, {message.from_user.first_name}!\n\n"
                           f"Per iniziare, inserisci la tua matricola:")
+
+
     bot.register_next_step_handler(message, check_matricola)
 
 def check_matricola(message):
+
     matricola_numero = message.text.strip()
 
     if matricola_numero == "/start":
         handle_start(message)
 
-    if (not matricola_numero.isdigit() or len(matricola_numero) != 6) and (matricola_numero != "/start"):
-        bot.reply_to(message, "⚠️ La matricola deve essere composta da 6 cifre numeriche."
-                              "\nInserisci nuovamente la matricola o usa /start per riavviare il processo:")
+    if(matricola_numero.isnumeric() == False):
+        bot.reply_to(message, "⚠️ La matricola inserita non è valida, inserire una matricola di 6 cifre."
+                              "\nInserisci una matricola valida o usa /start per riavviare il processo:")
         bot.register_next_step_handler(message, check_matricola)
-        return
 
-    # Memorizza la matricola nell'elenco degli utenti
-    utenti_matricole[message.from_user.id] = matricola_numero
+    elif(len(matricola_numero) != 6):
+        bot.reply_to(message, "⚠️ La matricola inserita non è valida, inserire una matricola di 6 cifre."
+                              "\nInserisci una matricola valida o usa /start per riavviare il processo:")
+        bot.register_next_step_handler(message, check_matricola)
 
-    # Controlla se la matricola è già presente nel database
-    cursor.execute("SELECT passwords FROM freshman WHERE matricole = ?", (matricola_numero,))
-    result = cursor.fetchone()
+    elif (matricola_numero not in available_matricole) and (matricola_numero.isnumeric()):
+        bot.reply_to(message, "❌ La matricola inserita non esiste."
+                              "\nInserisci una matricola esistente o usa /start per riavviare il processo:")
+        bot.register_next_step_handler(message, check_matricola)
 
-    if result:
-        # La matricola è già presente, quindi chiediamo direttamente la password
-        bot.reply_to(message, f"Se la tua matricola dovesse essere già occupata contatta un amministratore")
-        bot.reply_to(message, "Inserisci la tua password:")
-        bot.register_next_step_handler(message, check_password, matricola_numero)
-    elif(matricola_numero != "/start"):
+    elif (matricola_numero in available_matricole):
+     # Memorizza la matricola nell'elenco degli utenti
+     utenti_matricole[message.from_user.id] = matricola_numero
 
-          # La matricola è nuova, genera una password randomica e assegnala al database
-          password = generate_password()
-          create_freshman(matricola_numero, password)
-
-          bot.reply_to(message, f"✅ La tua matricola è stata registrata correttamente.\n\n"
-                              f"La tua matricola: {matricola_numero}\n"
-                              f"La tua password: {password}\n\n"
-                              f"Ora puoi utilizzare la tua matricola e password per accedere alle funzionalità del bot, premi /start per iniziare.")
-          bot.register_next_step_handler(message, handle_start)
+     # La matricola è già presente, quindi chiediamo direttamente la password
+     bot.reply_to(message, f"Se dovessi aver dimenticato la tua password contatta l'assistenza")
+     bot.reply_to(message, "Inserisci la tua password:")
+     bot.register_next_step_handler(message, check_password, matricola_numero)
 
 def check_password(message, matricola_numero):
     password = message.text.strip()
