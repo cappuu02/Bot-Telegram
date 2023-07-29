@@ -115,12 +115,29 @@ def save_booking(matricola, lezione):
         connection.rollback()
 
     # Incrementa il numero di posti prenotati per la lezione nel dizionario e nel database dei posti prenotati
-    posti_prenotati[lezione] += 1
+    posti_prenotati[lezione] += 180
+    print(posti_prenotati)
     cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, posti_prenotati[lezione]))
     connection.commit()
 
 # Creazione della tabella delle prenotazioni se non esiste
 cursor.execute("CREATE TABLE IF NOT EXISTS prenotazioni (matricola TEXT, lezione TEXT, PRIMARY KEY (matricola, lezione))")
+
+posti_prenotati = {}
+
+# Creazione della tabella dei posti prenotati se non esiste
+cursor.execute("CREATE TABLE IF NOT EXISTS posti_prenotati (lezione TEXT PRIMARY KEY, posti INTEGER)")
+
+
+
+# Retrieve data from the database to populate the posti_prenotati dictionary
+cursor.execute("SELECT lezione, posti FROM posti_prenotati")
+rows = cursor.fetchall()
+for row in rows:
+    lezione, posti = row
+    posti_prenotati[lezione] = posti
+
+
 
 
 
@@ -272,6 +289,7 @@ def check_prenotazione(message, matricola_numero):
                 bot.send_message(message.chat.id, "Vuoi prenotarla? (Rispondi con 'Si' o 'No')")
                 bot.register_next_step_handler(message, lambda msg: conferma_prenotazione(msg, matricola_numero, lezione, room_of_lezione))
 
+
 def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
     risposta = message.text.lower()
 
@@ -279,14 +297,26 @@ def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
         # Get the capacity from the room name
         max_capacity = get_room_capacity(room_of_lezione)
 
-        if posti_prenotati[lezione] < max_capacity:
+        # Retrieve the number of booked seats for the lesson from the database
+        cursor.execute("SELECT posti FROM posti_prenotati WHERE lezione = ?", (lezione,))
+        result = cursor.fetchone()
+
+        if result:
+            posti_disponibili = max_capacity - result[0]
+        else:
+            # If no seats are booked for the lesson, set posti_disponibili to max_capacity
+            posti_disponibili = max_capacity
+
+        if posti_disponibili > 0:
             # Room has available seats, proceed with booking
-            print(posti_prenotati[lezione])
-            posti_prenotati[lezione] += 5
-            bot.send_message(message.chat.id, "Prenotazione effettuata con successo!")
+            posti_prenotati[lezione] += 1
+            bot.send_message(message.chat.id, "✅ Prenotazione effettuata con successo!")
             # Save the booking in the database
             save_booking(matricola_numero, lezione)
-            print(matricola_numero)
+
+            # Update the number of booked seats for the lesson in the posti_prenotati table
+            cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, posti_prenotati[lezione]))
+            connection.commit()
 
             bot.send_message(message.chat.id, "Cosa vuoi fare ora?")
             bot.send_message(message.chat.id, "/start - Reinserisci la matricola")
@@ -294,15 +324,15 @@ def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
             bot.send_message(message.chat.id, "/prenotazione_lezioni - Prenota lezioni")
             bot.send_message(message.chat.id, "/cancella_prenotazione - Cancella la prenotazione di una lezione")
         else:
-            bot.send_message(message.chat.id, "Prenotazione fallita, l'aula è piena!")
+            bot.send_message(message.chat.id, "❌ Prenotazione fallita, l'aula è piena!")
             bot.send_message(message.chat.id, "Quale lezione vuoi prenotare?")
             bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
     elif risposta != 'no':
-        bot.send_message(message.chat.id, "Risposta non valida. Rispondi con 'Si' o 'No'.")
+        bot.send_message(message.chat.id, "⚠️ Risposta non valida. Rispondi con 'Si' o 'No'.")
         bot.register_next_step_handler(message, lambda msg: conferma_prenotazione(msg, matricola_numero, lezione, room_of_lezione))
     elif risposta == 'no':
         bot.send_message(message.chat.id, "Quale lezione vuoi prenotare?")
-        bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg,matricola_numero))
+        bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
 
 
 @bot.message_handler(commands=['cancella_prenotazione'])
@@ -311,6 +341,7 @@ def handle_cancella_prenotazione(message):
 
     bot.send_message(message.chat.id, "Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
     bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
+
 
 def cancella_prenotazione(message, matricola_numero):
     lezione = message.text
@@ -324,14 +355,15 @@ def cancella_prenotazione(message, matricola_numero):
     elif lezione == '/prenotazione_lezioni':
         handle_prenotazioni(message)
     else:
-        # Verifica se l'utente ha prenotato la lezione
+        # Verify if the user has booked the lesson
         if has_already_booked(matricola_numero, lezione):
             cursor.execute("DELETE FROM prenotazioni WHERE matricola = ? AND lezione = ?", (matricola_numero, lezione))
             connection.commit()
             posti_prenotati[lezione] -= 1
 
-            # Aggiorna il numero di posti prenotati per la lezione nel database dei posti prenotati
-            cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)", (lezione, posti_prenotati[lezione]))
+            # Update the number of booked seats for the lesson in the posti_prenotati table
+            cursor.execute("INSERT OR REPLACE INTO posti_prenotati (lezione, posti) VALUES (?, ?)",
+                           (lezione, posti_prenotati[lezione]))
             connection.commit()
 
             bot.send_message(message.chat.id, f"✅ Prenotazione per la lezione {lezione} cancellata con successo!")
@@ -343,9 +375,8 @@ def cancella_prenotazione(message, matricola_numero):
             bot.send_message(message.chat.id, "/cancella_prenotazione - Cancella la prenotazione di una lezione")
         else:
             bot.send_message(message.chat.id, f"❌ Non hai prenotato la lezione {lezione}.")
-            bot.register_next_step_handler(message, lambda msg: handle_cancella_prenotazione(msg, matricola_numero))
-
-
+            bot.send_message(message.chat.id,"Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
+            bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
 
 
 bot.polling()
