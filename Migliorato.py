@@ -244,7 +244,7 @@ def check_prenotazione(message, matricola_numero):
     elif lezione == '/cancella_prenotazione':
         handle_cancella_prenotazione(message)
 
-    if ((lezione != "/start" and lezione != "/lista_lezioni" and lezione != "/prenotazione_lezioni" and lezione != "cancella_prenotazione") and lezione.startswith('/')):
+    if ((lezione != "/start" and lezione != "/lista_lezioni" and lezione != "/prenotazione_lezioni" and lezione != "/cancella_prenotazione") and lezione.startswith('/')):
         bot.reply_to(message, "⚠️ Il comando inserito non è valido, inserisci un comando valido o una lezione corretta.")
 
         bot.register_next_step_handler(message, lambda msg: check_prenotazione(msg, matricola_numero))
@@ -277,7 +277,16 @@ def check_prenotazione(message, matricola_numero):
 def conferma_prenotazione(message, matricola_numero, lezione, room_of_lezione):
     risposta = message.text.lower()
 
-    if ((risposta != "/start" and risposta != "/lista_lezioni" and risposta != "/prenotazione_lezioni" and risposta != "cancella_prenotazione") and risposta.startswith('/')):
+    if risposta == '/start':
+        handle_start(message)
+    elif risposta == '/prenotazione_lezioni':
+        handle_prenotazioni(message)
+    elif risposta == '/lista_lezioni':
+        handle_table(message)
+    elif risposta == '/cancella_prenotazione':
+        handle_cancella_prenotazione(message)
+
+    if ((risposta != "/start" and risposta != "/lista_lezioni" and risposta != "/prenotazione_lezioni" and risposta != "/cancella_prenotazione") and risposta.startswith('/')):
         bot.reply_to(message,"⚠️ Il comando inserito non è valido, inserisci un comando valido o una risposta corretta.")
 
         bot.register_next_step_handler(message, lambda msg: conferma_prenotazione(msg, matricola_numero, lezione, room_of_lezione))
@@ -342,7 +351,7 @@ def cancella_prenotazione(message, matricola_numero):
     elif lezione == '/prenotazione_lezioni':
         handle_prenotazioni(message)
 
-    if ((lezione != "/start" and lezione != "/lista_lezioni" and lezione != "/prenotazione_lezioni" and lezione != "cancella_prenotazione") and lezione.startswith('/')):
+    if ((lezione != "/start" and lezione != "/lista_lezioni" and lezione != "/prenotazione_lezioni" and lezione != "/cancella_prenotazione") and lezione.startswith('/')):
         bot.reply_to(message,
                      "⚠️ Il comando inserito non è valido, inserisci un comando valido o una lezione corretta.")
 
