@@ -382,4 +382,4 @@ def cancella_prenotazione(message, matricola_numero):
             bot.send_message(message.chat.id, "Quale lezione vuoi cancellare? Inserisci il nome esatto come nella lista")
             bot.register_next_step_handler(message, lambda msg: cancella_prenotazione(msg, matricola_numero))
 
-bot.polling()
+bot.infinity_polling(timeout=10, long_polling_timeout=5)
